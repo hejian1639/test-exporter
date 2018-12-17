@@ -30,16 +30,7 @@ import (
 	"sync"
 )
 
-const (
-	namespace = "haproxy" // For Prometheus metrics.
-
-	minimumCsvFieldCount = 33
-	statusField          = 17
-	qtimeMsField         = 58
-	ctimeMsField         = 59
-	rtimeMsField         = 60
-	ttimeMsField         = 61
-)
+var gmonitor []string
 
 type metrics map[int]*prometheus.GaugeVec
 
@@ -88,25 +79,27 @@ func (e *Exporter) FolderUsage() map[string]int {
 	var du []byte
 	var err error
 	var cmd *exec.Cmd
-
-	// 执行单个shell命令时, 直接运行即可
-	cmd = exec.Command("du", "-k", "-d", "1")
-	if du, err = cmd.Output(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
 	fileSize := make(map[string]int)
 
-	stringArray := strings.Split(string(du), "\n")
-	for _, value := range stringArray {
-		if value == "" {
-			continue
+	for _, path := range gmonitor {
+		cmd = exec.Command("du", "-k", "-d", "1", path)
+		if du, err = cmd.Output(); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
 		}
-		nameValue := strings.Split(value, "\t")
-		i, _ := strconv.Atoi(nameValue[0])
-		fileSize[nameValue[1]] = i
+
+
+		stringArray := strings.Split(string(du), "\n")
+		for _, value := range stringArray {
+			if value == "" {
+				continue
+			}
+			nameValue := strings.Split(value, "\t")
+			i, _ := strconv.Atoi(nameValue[0])
+			fileSize[nameValue[1]] = i
+		}
 	}
+		// 执行单个shell命令时, 直接运行即可
 	return fileSize
 }
 
@@ -141,7 +134,13 @@ func main() {
 		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for web interface and telemetry.").Default(":9101").String()
 		metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
 	)
-	name := kingpin.Flag("name", "metrics name").Default("test").String()
+	monitor := kingpin.Flag("monitor", "monitor path").Default(".").Strings()
+	kingpin.Parse()
+
+	log.Infoln("monitor on ", monitor)
+	gmonitor = *monitor
+
+	var name = "file_size"
 
 	log.AddFlags(kingpin.CommandLine)
 	kingpin.Version(version.Print("haproxy_exporter"))
@@ -151,12 +150,12 @@ func main() {
 	log.Infoln("Starting haproxy_exporter", version.Info())
 	log.Infoln("Build context", version.BuildContext())
 
-	exporter, err := NewExporter(name)
+	exporter, err := NewExporter(&name)
 	if err != nil {
 		log.Fatal(err)
 	}
 	prometheus.MustRegister(exporter)
-	prometheus.MustRegister(version.NewCollector(*name))
+	prometheus.MustRegister(version.NewCollector(name))
 
 	log.Infoln("Listening on", *listenAddress)
 	http.Handle(*metricsPath, promhttp.Handler())

@@ -22,7 +22,6 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 	"net/http"
 	_ "net/http/pprof"
-	"os"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -85,7 +84,8 @@ func (e *Exporter) FolderUsage() map[string]int {
 		cmd = exec.Command("du", "-k", "-d", "1", path)
 		if du, err = cmd.Output(); err != nil {
 			fmt.Println(err)
-			os.Exit(1)
+			return fileSize
+
 		}
 
 

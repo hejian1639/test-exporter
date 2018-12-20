@@ -22,12 +22,15 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 )
 
 var gmonitor []string
@@ -142,8 +145,7 @@ func ProtectRun(entry func()) {
 
 }
 
-
-func main() {
+func entry() {
 	const pidFileHelpText = `Path to HAProxy pid file.
 
 	If provided, the standard process metrics get exported for the HAProxy
@@ -195,11 +197,28 @@ func main() {
              </html>`))
 	})
 
-	for true{
-		ProtectRun(func() {
-			log.Fatal(http.ListenAndServe(*listenAddress, nil))
+	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 
-		})
+}
+
+func main() {
+	//创建监听退出chan
+	c := make(chan os.Signal)
+	//监听指定信号 ctrl+c kill
+	signal.Notify(c, syscall.SIGHUP)
+	go func() {
+		for s := range c {
+			switch s {
+			case syscall.SIGHUP:
+				fmt.Println("hup event")
+			default:
+				fmt.Println("other", s)
+			}
+		}
+	}()
+
+	for true {
+		ProtectRun(entry)
 
 	}
 

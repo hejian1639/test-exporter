@@ -86,8 +86,9 @@ func (e *Exporter) FolderUsage() map[string]int {
 
 	for _, path := range gmonitor {
 		cmd = exec.Command("du", "-k", "-d", "1", path)
+		//cmd = exec.Command("./signal")
 		if du, err = cmd.Output(); err != nil {
-			fmt.Println(err)
+			fmt.Println(path,err)
 			return fileSize
 
 		}
